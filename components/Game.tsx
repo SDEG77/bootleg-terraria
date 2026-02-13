@@ -10,6 +10,7 @@ import { renderWorld, drawHotbar } from "@/lib/renderer";
 
 export default function Game() {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const zoomRef = useRef(1.5);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -26,6 +27,20 @@ export default function Game() {
     // player & inventory
     const player: Player = createPlayer();
     const inventory: Inventory = createInventory();
+
+    // spawn on the surface near the center of the world
+    {
+      const spawnTx = Math.floor(WORLD_W / 2);
+      let spawnTy = 0;
+      for (let ty = 0; ty < WORLD_H; ty++) {
+        if (worldSys.isSolid(spawnTx, ty)) {
+          spawnTy = ty;
+          break;
+        }
+      }
+      player.x = spawnTx * TILE_SIZE + (TILE_SIZE - player.w) / 2;
+      player.y = spawnTy * TILE_SIZE - player.h;
+    }
 
     // keys map for input
     const keys: Record<string, boolean> = {};
@@ -44,10 +59,16 @@ export default function Game() {
     window.addEventListener("resize", resize);
 
     const INTERACT_RANGE_TILES = 6;
+    const MIN_ZOOM = 0.75;
+    const MAX_ZOOM = 3;
+    const ZOOM_STEP = 0.15;
 
     function getCamera() {
-      const camX = Math.max(0, Math.min(WORLD_W * TILE_SIZE - canvas.width, player.x + player.w / 2 - canvas.width / 2));
-      const camY = Math.max(0, Math.min(WORLD_H * TILE_SIZE - canvas.height, player.y + player.h / 2 - canvas.height / 2));
+      const zoom = zoomRef.current;
+      const viewW = canvas.width / zoom;
+      const viewH = canvas.height / zoom;
+      const camX = Math.max(0, Math.min(WORLD_W * TILE_SIZE - viewW, player.x + player.w / 2 - viewW / 2));
+      const camY = Math.max(0, Math.min(WORLD_H * TILE_SIZE - viewH, player.y + player.h / 2 - viewH / 2));
       return { camX, camY };
     }
 
@@ -89,10 +110,11 @@ export default function Game() {
     // helper to convert mouse -> world coords and tile coords
     function mouseToTarget(mx: number, my: number, rect: DOMRect) {
       const { camX, camY } = getCamera();
+      const zoom = zoomRef.current;
       const scaleX = canvas.width / rect.width;
       const scaleY = canvas.height / rect.height;
-      const worldX = mx * scaleX + camX;
-      const worldY = my * scaleY + camY;
+      const worldX = (mx * scaleX) / zoom + camX;
+      const worldY = (my * scaleY) / zoom + camY;
       const tx = Math.floor(worldX / TILE_SIZE);
       const ty = Math.floor(worldY / TILE_SIZE);
       return { worldX, worldY, tx, ty };
@@ -150,8 +172,17 @@ export default function Game() {
       }
     };
 
+    const handleWheel = (e: WheelEvent) => {
+      e.preventDefault();
+      const nextZoom = e.deltaY < 0 ? zoomRef.current + ZOOM_STEP : zoomRef.current - ZOOM_STEP;
+      zoomRef.current = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, nextZoom));
+    };
+
+    const handleContextMenu = (ev: MouseEvent) => ev.preventDefault();
+
     canvas.addEventListener("mousedown", handleMouseDown);
-    canvas.addEventListener("contextmenu", (ev) => ev.preventDefault());
+    canvas.addEventListener("wheel", handleWheel, { passive: false });
+    canvas.addEventListener("contextmenu", handleContextMenu);
 
     // main loop
     let raf = 0;
@@ -184,11 +215,17 @@ export default function Game() {
       ctx.fillRect(0, 0, canvas.width, canvas.height);
 
       // world
-      renderWorld(ctx, world, camX, camY, canvas);
+      const zoom = zoomRef.current;
+      renderWorld(ctx, world, camX, camY, canvas, zoom);
 
       // player
       ctx.fillStyle = "#ffcc00";
-      ctx.fillRect(Math.floor(player.x - camX), Math.floor(player.y - camY), player.w, player.h);
+      ctx.fillRect(
+        Math.floor((player.x - camX) * zoom),
+        Math.floor((player.y - camY) * zoom),
+        Math.ceil(player.w * zoom),
+        Math.ceil(player.h * zoom)
+      );
 
       // HUD hotbar
       drawHotbar(ctx, canvas, inventory);
@@ -204,7 +241,8 @@ export default function Game() {
       cleanupKeyboard();
       window.removeEventListener("resize", resize);
       canvas.removeEventListener("mousedown", handleMouseDown);
-      canvas.removeEventListener("contextmenu", (ev) => ev.preventDefault());
+      canvas.removeEventListener("wheel", handleWheel);
+      canvas.removeEventListener("contextmenu", handleContextMenu);
     };
   }, []);
 

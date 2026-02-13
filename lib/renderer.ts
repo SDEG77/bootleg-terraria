@@ -7,12 +7,15 @@ export function renderWorld(
   world: number[][],
   camX: number,
   camY: number,
-  canvas: HTMLCanvasElement
+  canvas: HTMLCanvasElement,
+  zoom = 1
 ) {
+  const visibleWorldW = canvas.width / zoom;
+  const visibleWorldH = canvas.height / zoom;
   const startTx = Math.floor(camX / TILE_SIZE);
-  const endTx = Math.min(world[0].length - 1, Math.ceil((camX + canvas.width) / TILE_SIZE));
+  const endTx = Math.min(world[0].length - 1, Math.ceil((camX + visibleWorldW) / TILE_SIZE));
   const startTy = Math.floor(camY / TILE_SIZE);
-  const endTy = Math.min(world.length - 1, Math.ceil((camY + canvas.height) / TILE_SIZE));
+  const endTy = Math.min(world.length - 1, Math.ceil((camY + visibleWorldH) / TILE_SIZE));
 
   for (let y = startTy; y <= endTy; y++) {
     for (let x = startTx; x <= endTx; x++) {
@@ -20,10 +23,10 @@ export function renderWorld(
       if (!tile) continue;
       ctx.fillStyle = TILE_COLORS[tile] || "#000";
       ctx.fillRect(
-        Math.floor(x * TILE_SIZE - camX),
-        Math.floor(y * TILE_SIZE - camY),
-        TILE_SIZE,
-        TILE_SIZE
+        Math.floor((x * TILE_SIZE - camX) * zoom),
+        Math.floor((y * TILE_SIZE - camY) * zoom),
+        Math.ceil(TILE_SIZE * zoom),
+        Math.ceil(TILE_SIZE * zoom)
       );
     }
   }
