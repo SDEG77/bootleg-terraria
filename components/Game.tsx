@@ -6,7 +6,7 @@ import { createWorld } from "@/lib/world";
 import { createPlayer, resolveCollision, Player } from "@/lib/player";
 import { createInventory, addToInventory, getSelectedTile, Inventory, removeFromInventory } from "@/lib/inventory";
 import { setupKeyboard } from "@/lib/input";
-import { renderWorld, drawHotbar } from "@/lib/renderer";
+import { renderWorld, drawHotbar, drawHealthBar } from "@/lib/renderer";
 
 export default function Game() {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -28,9 +28,13 @@ export default function Game() {
     // player & inventory
     const player: Player = createPlayer();
     const inventory: Inventory = createInventory();
+    const MAX_HEALTH = 100;
+    let health = MAX_HEALTH;
     const playerSprite = new Image();
     playerSprite.src = "/player-sprite.svg";
     spriteRef.current = playerSprite;
+    let spawnX = player.x;
+    let spawnY = player.y;
 
     // spawn on the surface near the center of the world
     {
@@ -42,8 +46,10 @@ export default function Game() {
           break;
         }
       }
-      player.x = spawnTx * TILE_SIZE + (TILE_SIZE - player.w) / 2;
-      player.y = spawnTy * TILE_SIZE - player.h;
+      spawnX = spawnTx * TILE_SIZE + (TILE_SIZE - player.w) / 2;
+      spawnY = spawnTy * TILE_SIZE - player.h;
+      player.x = spawnX;
+      player.y = spawnY;
     }
 
     // keys map for input
@@ -209,7 +215,25 @@ export default function Game() {
 
     function loop() {
       updateInputMovement();
+      const wasOnGround = player.onGround;
+      const impactSpeed = player.vy;
       resolveCollision(player, worldSys.isSolid);
+
+      // Fall damage on hard landings.
+      if (!wasOnGround && player.onGround && impactSpeed > 10) {
+        const damage = Math.floor((impactSpeed - 9) * 8);
+        health = Math.max(0, health - damage);
+      }
+
+      // Respawn with full health if dead.
+      if (health <= 0) {
+        health = MAX_HEALTH;
+        player.x = spawnX;
+        player.y = spawnY;
+        player.vx = 0;
+        player.vy = 0;
+        player.onGround = false;
+      }
 
       // camera
       const { camX, camY } = getCamera();
@@ -236,6 +260,7 @@ export default function Game() {
       }
 
       // HUD hotbar
+      drawHealthBar(ctx, canvas, health, MAX_HEALTH);
       drawHotbar(ctx, canvas, inventory);
 
       raf = requestAnimationFrame(loop);

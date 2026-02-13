@@ -61,3 +61,40 @@ export function drawHotbar(ctx: CanvasRenderingContext2D, canvas: HTMLCanvasElem
     ctx.fillText(String(i + 1), x + size - 12, y + size - 14);
   }
 }
+
+export function drawHealthBar(
+  ctx: CanvasRenderingContext2D,
+  canvas: HTMLCanvasElement,
+  health: number,
+  maxHealth: number
+) {
+  const x = 20;
+  const y = 20;
+  const w = 220;
+  const h = 22;
+  const safeMax = Math.max(1, maxHealth);
+  const clamped = Math.max(0, Math.min(health, safeMax));
+  const ratio = clamped / safeMax;
+
+  ctx.fillStyle = "rgba(0,0,0,0.55)";
+  ctx.fillRect(x - 2, y - 2, w + 4, h + 4);
+
+  ctx.fillStyle = "#3b0a0a";
+  ctx.fillRect(x, y, w, h);
+
+  ctx.fillStyle = "#e53935";
+  ctx.fillRect(x, y, Math.floor(w * ratio), h);
+
+  ctx.strokeStyle = "#ffffff";
+  ctx.lineWidth = 2;
+  ctx.strokeRect(x, y, w, h);
+
+  ctx.font = "bold 14px monospace";
+  ctx.textAlign = "left";
+  ctx.textBaseline = "top";
+  ctx.fillStyle = "#ffffff";
+  ctx.fillText(`HP ${Math.ceil(clamped)}/${safeMax}`, x + 8, y + 3);
+
+  // Keep text alignment predictable for other HUD draws.
+  ctx.textAlign = "start";
+}
