@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { TILE_SIZE, WORLD_W, WORLD_H } from "@/lib/constants";
+import { TILE, TILE_SIZE, WORLD_W, WORLD_H } from "@/lib/constants";
 import { createWorld } from "@/lib/world";
 import { createPlayer, resolveCollision, Player } from "@/lib/player";
 import { createInventory, addToInventory, getSelectedTile, Inventory, removeFromInventory } from "@/lib/inventory";
@@ -43,13 +43,59 @@ export default function Game() {
     resize();
     window.addEventListener("resize", resize);
 
-    // helper to convert mouse -> world tile coords
-    function mouseToTile(mx: number, my: number) {
+    const INTERACT_RANGE_TILES = 6;
+
+    function getCamera() {
       const camX = Math.max(0, Math.min(WORLD_W * TILE_SIZE - canvas.width, player.x + player.w / 2 - canvas.width / 2));
       const camY = Math.max(0, Math.min(WORLD_H * TILE_SIZE - canvas.height, player.y + player.h / 2 - canvas.height / 2));
-      const tx = Math.floor((mx + camX) / TILE_SIZE);
-      const ty = Math.floor((my + camY) / TILE_SIZE);
-      return { tx, ty };
+      return { camX, camY };
+    }
+
+    function inWorld(tx: number, ty: number) {
+      return tx >= 0 && ty >= 0 && tx < WORLD_W && ty < WORLD_H;
+    }
+
+    function tileOverlapsPlayer(tx: number, ty: number) {
+      const x = tx * TILE_SIZE;
+      const y = ty * TILE_SIZE;
+      return (
+        x < player.x + player.w &&
+        x + TILE_SIZE > player.x &&
+        y < player.y + player.h &&
+        y + TILE_SIZE > player.y
+      );
+    }
+
+    function isWithinInteractRange(tx: number, ty: number) {
+      const px = player.x + player.w / 2;
+      const py = player.y + player.h / 2;
+      const cx = tx * TILE_SIZE + TILE_SIZE / 2;
+      const cy = ty * TILE_SIZE + TILE_SIZE / 2;
+      const dx = cx - px;
+      const dy = cy - py;
+      const maxDist = INTERACT_RANGE_TILES * TILE_SIZE;
+      return dx * dx + dy * dy <= maxDist * maxDist;
+    }
+
+    function hasNonAirNeighbor(tx: number, ty: number) {
+      return (
+        getTile(tx + 1, ty) !== TILE.AIR ||
+        getTile(tx - 1, ty) !== TILE.AIR ||
+        getTile(tx, ty + 1) !== TILE.AIR ||
+        getTile(tx, ty - 1) !== TILE.AIR
+      );
+    }
+
+    // helper to convert mouse -> world coords and tile coords
+    function mouseToTarget(mx: number, my: number, rect: DOMRect) {
+      const { camX, camY } = getCamera();
+      const scaleX = canvas.width / rect.width;
+      const scaleY = canvas.height / rect.height;
+      const worldX = mx * scaleX + camX;
+      const worldY = my * scaleY + camY;
+      const tx = Math.floor(worldX / TILE_SIZE);
+      const ty = Math.floor(worldY / TILE_SIZE);
+      return { worldX, worldY, tx, ty };
     }
 
     // mouse handlers for break/place
@@ -57,26 +103,49 @@ export default function Game() {
       const rect = canvas.getBoundingClientRect();
       const mx = e.clientX - rect.left;
       const my = e.clientY - rect.top;
-      const { tx, ty } = mouseToTile(mx, my);
+      const { worldX, worldY, tx, ty } = mouseToTarget(mx, my, rect);
+      if (!inWorld(tx, ty) || !isWithinInteractRange(tx, ty)) return;
       const tile = getTile(tx, ty);
 
       // left = 0 break & pickup
       if (e.button === 0) {
-        if (tile !== 0) {
+        if (tile !== TILE.AIR) {
           addToInventory(inventory, tile, 1);
-          setTile(tx, ty, 0);
+          setTile(tx, ty, TILE.AIR);
         }
       }
 
       // right = 2 place selected
       if (e.button === 2) {
         const type = getSelectedTile(inventory);
-        if ((inventory.counts[type] || 0) > 0 && tile === 0) {
-          // place tile
-          const taken = removeFromInventory(inventory, type, 1);
-          if (taken > 0) {
-            setTile(tx, ty, type);
+        if ((inventory.counts[type] || 0) <= 0) return;
+
+        let placeTx = tx;
+        let placeTy = ty;
+
+        // If aiming at a solid tile, place on the closest face to cursor.
+        if (tile !== TILE.AIR) {
+          const targetCx = tx * TILE_SIZE + TILE_SIZE / 2;
+          const targetCy = ty * TILE_SIZE + TILE_SIZE / 2;
+          const dx = worldX - targetCx;
+          const dy = worldY - targetCy;
+
+          if (Math.abs(dx) > Math.abs(dy)) {
+            placeTx += dx > 0 ? 1 : -1;
+          } else {
+            placeTy += dy > 0 ? 1 : -1;
           }
+        }
+
+        if (!inWorld(placeTx, placeTy)) return;
+        if (!isWithinInteractRange(placeTx, placeTy)) return;
+        if (getTile(placeTx, placeTy) !== TILE.AIR) return;
+        if (tileOverlapsPlayer(placeTx, placeTy)) return;
+        if (!hasNonAirNeighbor(placeTx, placeTy)) return;
+
+        const taken = removeFromInventory(inventory, type, 1);
+        if (taken > 0) {
+          setTile(placeTx, placeTy, type);
         }
       }
     };
@@ -108,8 +177,7 @@ export default function Game() {
       resolveCollision(player, worldSys.isSolid);
 
       // camera
-      const camX = Math.max(0, Math.min(WORLD_W * TILE_SIZE - canvas.width, player.x + player.w / 2 - canvas.width / 2));
-      const camY = Math.max(0, Math.min(WORLD_H * TILE_SIZE - canvas.height, player.y + player.h / 2 - canvas.height / 2));
+      const { camX, camY } = getCamera();
 
       // draw background
       ctx.fillStyle = "#87CEEB";
@@ -138,7 +206,6 @@ export default function Game() {
       canvas.removeEventListener("mousedown", handleMouseDown);
       canvas.removeEventListener("contextmenu", (ev) => ev.preventDefault());
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   return <canvas ref={canvasRef} style={{ display: "block", width: "100%", height: "100vh" }} />;
