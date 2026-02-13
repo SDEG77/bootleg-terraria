@@ -12,13 +12,17 @@ const TILE = {
   DIRT: 1,
   STONE: 2,
   GRASS: 3,
-};
+  WOOD: 4,
+  LEAVES: 5,
+} as const;
 
-const TILE_COLORS = {
+const TILE_COLORS: Record<number, string | null> = {
   [TILE.AIR]: null,
   [TILE.DIRT]: "#8B5A2B",
   [TILE.STONE]: "#6b6b6b",
   [TILE.GRASS]: "#2ecc71",
+  [TILE.WOOD]: "#8B4513",
+  [TILE.LEAVES]: "#3cb371",
 };
 
 export default function Game() {
@@ -42,8 +46,13 @@ export default function Game() {
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
 
-    canvas.width = window.innerWidth;
-    canvas.height = window.innerHeight;
+    // set canvas pixel size
+    function resize() {
+      canvas.width = window.innerWidth;
+      canvas.height = window.innerHeight;
+    }
+    resize();
+    window.addEventListener("resize", resize);
 
     const world = generateWorld(WORLD_W, WORLD_H);
 
@@ -62,16 +71,18 @@ export default function Game() {
       return world[ty][tx];
     }
 
+    // Treat leaves as non-solid; everything else except AIR is solid
     function isSolidTile(tx: number, ty: number) {
       const t = getTile(tx, ty);
-      return t !== TILE.AIR;
+      if (t === TILE.AIR || t === TILE.LEAVES) return false;
+      return true;
     }
 
     function resolveCollision(p: typeof player.current) {
       // gravity
       p.vy += 0.5;
 
-      // horizontal
+      // horizontal movement and collision
       p.x += p.vx;
       let minTx = Math.floor(p.x / TILE_SIZE);
       let maxTx = Math.floor((p.x + p.w - 1) / TILE_SIZE);
@@ -84,11 +95,13 @@ export default function Game() {
             if (p.vx > 0) p.x = tx * TILE_SIZE - p.w;
             else if (p.vx < 0) p.x = (tx + 1) * TILE_SIZE;
             p.vx = 0;
+            minTx = Math.floor(p.x / TILE_SIZE);
+            maxTx = Math.floor((p.x + p.w - 1) / TILE_SIZE);
           }
         }
       }
 
-      // vertical
+      // vertical movement and collision
       p.y += p.vy;
       p.onGround = false;
       minTx = Math.floor(p.x / TILE_SIZE);
@@ -107,6 +120,8 @@ export default function Game() {
               p.y = (ty + 1) * TILE_SIZE;
               p.vy = 0;
             }
+            minTy = Math.floor(p.y / TILE_SIZE);
+            maxTy = Math.floor((p.y + p.h - 1) / TILE_SIZE);
           }
         }
       }
@@ -133,19 +148,26 @@ export default function Game() {
       resolveCollision(p);
 
       // camera
-      const camX = Math.max(0, Math.min(WORLD_W * TILE_SIZE - canvas.width, p.x + p.w / 2 - canvas.width / 2));
-      const camY = Math.max(0, Math.min(WORLD_H * TILE_SIZE - canvas.height, p.y + p.h / 2 - canvas.height / 2));
+      const camX = Math.max(
+        0,
+        Math.min(WORLD_W * TILE_SIZE - canvas.width, p.x + p.w / 2 - canvas.width / 2)
+      );
+      const camY = Math.max(
+        0,
+        Math.min(WORLD_H * TILE_SIZE - canvas.height, p.y + p.h / 2 - canvas.height / 2)
+      );
 
-      // draw
+      // draw background
       ctx.fillStyle = "#87CEEB";
       ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-      // draw tiles
+      // visible tile range
       const startTx = Math.floor(camX / TILE_SIZE);
       const endTx = Math.min(WORLD_W - 1, Math.ceil((camX + canvas.width) / TILE_SIZE));
       const startTy = Math.floor(camY / TILE_SIZE);
       const endTy = Math.min(WORLD_H - 1, Math.ceil((camY + canvas.height) / TILE_SIZE));
 
+      // draw tiles
       for (let y = startTy; y <= endTy; y++) {
         for (let x = startTx; x <= endTx; x++) {
           const tile = world[y][x];
@@ -167,8 +189,15 @@ export default function Game() {
     return () => {
       window.removeEventListener("keydown", handleKeyDown);
       window.removeEventListener("keyup", handleKeyUp);
+      window.removeEventListener("resize", resize);
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  return <canvas ref={canvasRef} style={{ display: "block", width: "100%", height: "100vh" }} />;
+  return (
+    <canvas
+      ref={canvasRef}
+      style={{ display: "block", width: "100%", height: "100vh" }}
+    />
+  );
 }
