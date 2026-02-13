@@ -11,6 +11,7 @@ import { renderWorld, drawHotbar } from "@/lib/renderer";
 export default function Game() {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const zoomRef = useRef(1.5);
+  const spriteRef = useRef<HTMLImageElement | null>(null);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -27,6 +28,9 @@ export default function Game() {
     // player & inventory
     const player: Player = createPlayer();
     const inventory: Inventory = createInventory();
+    const playerSprite = new Image();
+    playerSprite.src = "/player-sprite.svg";
+    spriteRef.current = playerSprite;
 
     // spawn on the surface near the center of the world
     {
@@ -219,13 +223,17 @@ export default function Game() {
       renderWorld(ctx, world, camX, camY, canvas, zoom);
 
       // player
-      ctx.fillStyle = "#ffcc00";
-      ctx.fillRect(
-        Math.floor((player.x - camX) * zoom),
-        Math.floor((player.y - camY) * zoom),
-        Math.ceil(player.w * zoom),
-        Math.ceil(player.h * zoom)
-      );
+      const drawX = Math.floor((player.x - camX) * zoom);
+      const drawY = Math.floor((player.y - camY) * zoom);
+      const drawW = Math.ceil(player.w * zoom);
+      const drawH = Math.ceil(player.h * zoom);
+      const sprite = spriteRef.current;
+      if (sprite && sprite.complete && sprite.naturalWidth > 0) {
+        ctx.drawImage(sprite, drawX, drawY, drawW, drawH);
+      } else {
+        ctx.fillStyle = "#ffcc00";
+        ctx.fillRect(drawX, drawY, drawW, drawH);
+      }
 
       // HUD hotbar
       drawHotbar(ctx, canvas, inventory);
@@ -243,6 +251,7 @@ export default function Game() {
       canvas.removeEventListener("mousedown", handleMouseDown);
       canvas.removeEventListener("wheel", handleWheel);
       canvas.removeEventListener("contextmenu", handleContextMenu);
+      spriteRef.current = null;
     };
   }, []);
 
