@@ -33,8 +33,8 @@ export function resolveCollision(p: Player, isSolid: (tx: number, ty: number) =>
   {
     let minTx = Math.floor(p.x / TILE_SIZE);
     let maxTx = Math.floor((p.x + p.w - 1) / TILE_SIZE);
-    let minTy = Math.floor(p.y / TILE_SIZE);
-    let maxTy = Math.floor((p.y + p.h - 1) / TILE_SIZE);
+    const minTy = Math.floor(p.y / TILE_SIZE);
+    const maxTy = Math.floor((p.y + p.h - 1) / TILE_SIZE);
 
     for (let ty = minTy; ty <= maxTy; ty++) {
       for (let tx = minTx; tx <= maxTx; tx++) {
@@ -53,8 +53,8 @@ export function resolveCollision(p: Player, isSolid: (tx: number, ty: number) =>
   p.y += p.vy;
   p.onGround = false;
   {
-    let minTx = Math.floor(p.x / TILE_SIZE);
-    let maxTx = Math.floor((p.x + p.w - 1) / TILE_SIZE);
+    const minTx = Math.floor(p.x / TILE_SIZE);
+    const maxTx = Math.floor((p.x + p.w - 1) / TILE_SIZE);
     let minTy = Math.floor(p.y / TILE_SIZE);
     let maxTy = Math.floor((p.y + p.h - 1) / TILE_SIZE);
 

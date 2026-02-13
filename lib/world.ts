@@ -1,33 +1,31 @@
-// lib/world.ts
 import { generateWorld } from "@/lib/worldGenerator";
 import { TILE, WORLD_W, WORLD_H } from "@/lib/constants";
 
-export function createWorld() {
-  const world = generateWorld(WORLD_W, WORLD_H);
+export type WorldGrid = number[][];
 
-  function getTile(tx: number, ty: number): number {
-    if (tx < 0 || ty < 0 || tx >= WORLD_W || ty >= WORLD_H) return TILE.AIR;
-    return world[ty][tx];
-  }
+export function createWorld(): WorldGrid {
+  return generateWorld(WORLD_W, WORLD_H);
+}
 
-  function setTile(tx: number, ty: number, value: number) {
-    if (tx < 0 || ty < 0 || tx >= WORLD_W || ty >= WORLD_H) return;
-    world[ty][tx] = value;
-  }
+export function inWorld(tx: number, ty: number): boolean {
+  return tx >= 0 && ty >= 0 && tx < WORLD_W && ty < WORLD_H;
+}
 
-  // Leaves and wood are passable (non-solid)
-  function isSolid(tx: number, ty: number): boolean {
-    const t = getTile(tx, ty);
-    if (t === TILE.AIR) return false;
-    if (t === TILE.LEAVES) return false;
-    if (t === TILE.WOOD) return false;
-    return true;
-  }
+export function getTile(world: WorldGrid, tx: number, ty: number): number {
+  if (!inWorld(tx, ty)) return TILE.AIR;
+  return world[ty][tx];
+}
 
-  return {
-    world,
-    getTile,
-    setTile,
-    isSolid,
-  };
+export function setTile(world: WorldGrid, tx: number, ty: number, value: number): void {
+  if (!inWorld(tx, ty)) return;
+  world[ty][tx] = value;
+}
+
+// Leaves and wood are passable (non-solid)
+export function isSolid(world: WorldGrid, tx: number, ty: number): boolean {
+  const t = getTile(world, tx, ty);
+  if (t === TILE.AIR) return false;
+  if (t === TILE.LEAVES) return false;
+  if (t === TILE.WOOD) return false;
+  return true;
 }
