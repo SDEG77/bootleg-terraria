@@ -1,13 +1,14 @@
-export function setupKeyboard(keys: any, onSelect: (num: number) => void) {
+// lib/input.ts
+export function setupKeyboard(keys: Record<string, boolean>, onSelectHotkey: (slotIndex: number) => void) {
   const handleDown = (e: KeyboardEvent) => {
     keys[e.code] = true;
-
     if (e.code.startsWith("Digit")) {
-      const num = parseInt(e.code.replace("Digit", ""));
-      if (num >= 1 && num <= 5) onSelect(num);
+      const num = parseInt(e.code.replace("Digit", ""), 10);
+      if (!Number.isNaN(num) && num >= 1 && num <= 5) {
+        onSelectHotkey(num - 1); // convert to 0-based slot index
+      }
     }
   };
-
   const handleUp = (e: KeyboardEvent) => {
     keys[e.code] = false;
   };

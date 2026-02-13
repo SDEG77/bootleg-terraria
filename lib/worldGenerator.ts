@@ -1,22 +1,16 @@
 // lib/worldGenerator.ts
 // Simple terrain generator with optional tree placement.
-// Tiles:
-// 0 = AIR
-// 1 = DIRT
-// 2 = STONE
-// 3 = GRASS (surface)
-// 4 = WOOD (tree trunk) - solid
-// 5 = LEAVES (tree canopy) - non-solid
+// Returns number[][] where world[y][x] is a tile id.
 
-export function generateWorld(W: number, H: number): number[][] {
-  const world: number[][] = Array.from({ length: H }, () =>
-    new Array(W).fill(0)
-  );
+import { TILE, WORLD_W, WORLD_H } from "@/lib/constants";
+
+export function generateWorld(W = WORLD_W, H = WORLD_H): number[][] {
+  const world: number[][] = Array.from({ length: H }, () => new Array(W).fill(TILE.AIR));
 
   const mid = Math.floor(H * 0.6);
 
-  // generate a height map (random walk + small noise)
-  const heights = new Array<number>(W);
+  // height map - random walk
+  const heights: number[] = new Array(W);
   let last = mid;
   for (let x = 0; x < W; x++) {
     last += Math.round((Math.random() - 0.5) * 3);
@@ -24,56 +18,43 @@ export function generateWorld(W: number, H: number): number[][] {
     heights[x] = last;
   }
 
-  // fill terrain
+  // fill ground
   for (let x = 0; x < W; x++) {
     const h = heights[x];
     for (let y = 0; y < H; y++) {
-      if (y < h) {
-        world[y][x] = 0; // air
-      } else if (y === h) {
-        world[y][x] = 3; // grass
-      } else if (y <= h + 4) {
-        world[y][x] = 1; // dirt
-      } else {
-        world[y][x] = 2; // stone
-      }
+      if (y < h) world[y][x] = TILE.AIR;
+      else if (y === h) world[y][x] = TILE.GRASS;
+      else if (y <= h + 4) world[y][x] = TILE.DIRT;
+      else world[y][x] = TILE.STONE;
 
-      // small caves deeper down
-      if (world[y][x] !== 0 && Math.random() < 0.02 && y > h + 6) {
-        world[y][x] = 0;
+      // small caves
+      if (world[y][x] !== TILE.AIR && Math.random() < 0.02 && y > h + 6) {
+        world[y][x] = TILE.AIR;
       }
     }
   }
 
   // place trees
-  // For each column, small chance to place a tree if there's space above the surface.
   for (let x = 2; x < W - 2; x++) {
-    // Only attempt if this column is grass and the column above is free
     const surfaceY = heights[x];
     if (Math.random() < 0.06) {
-      // don't place if adjacent columns are very low/high (avoid cliffs)
       const leftH = heights[x - 1];
       const rightH = heights[x + 1];
-      if (Math.abs(leftH - surfaceY) > 2 || Math.abs(rightH - surfaceY) > 2) {
-        continue;
-      }
+      if (Math.abs(leftH - surfaceY) > 2 || Math.abs(rightH - surfaceY) > 2) continue;
 
-      // check vertical space above surface
       const maxTreeHeight = 6;
       const minTreeHeight = 4;
       const tHeight = minTreeHeight + Math.floor(Math.random() * (maxTreeHeight - minTreeHeight + 1));
-      const trunkBottomY = surfaceY - 1; // tile just above grass
+      const trunkBottomY = surfaceY - 1;
       const trunkTopY = trunkBottomY - (tHeight - 1);
+      if (trunkTopY < 2) continue;
 
-      if (trunkTopY < 2) continue; // not enough space
-
-      // quick overlap check (don't overwrite existing solid except air)
+      // overlap check
       let canPlace = true;
       for (let ty = trunkTopY - 2; ty <= trunkBottomY + 1; ty++) {
         for (let tx = x - 2; tx <= x + 2; tx++) {
           if (ty < 0 || tx < 0 || ty >= H || tx >= W) { canPlace = false; break; }
-          if (world[ty][tx] !== 0 && world[ty][tx] !== 5) { // allow replacing leaves only
-            // don't place tree if there's something solid in the expected canopy/trunk area
+          if (world[ty][tx] !== TILE.AIR && world[ty][tx] !== TILE.LEAVES) {
             if (ty <= trunkBottomY && ty >= trunkTopY) canPlace = false;
           }
         }
@@ -81,35 +62,30 @@ export function generateWorld(W: number, H: number): number[][] {
       }
       if (!canPlace) continue;
 
-      // place trunk
+      // trunk
       for (let ty = trunkTopY; ty <= trunkBottomY; ty++) {
-        world[ty][x] = 4; // wood
+        world[ty][x] = TILE.WOOD;
       }
 
-      // place leaves canopy: a simple layered blob centered above trunkTopY
+      // canopy
       const canopyCenterY = trunkTopY;
       for (let dy = -2; dy <= 1; dy++) {
-        const radius = dy === -2 ? 1 : dy === -1 ? 2 : 2; // shapes per row
+        const radius = dy === -2 ? 1 : dy === -1 ? 2 : 2;
         for (let dx = -radius; dx <= radius; dx++) {
           const lx = x + dx;
           const ly = canopyCenterY + dy;
           if (lx < 0 || lx >= W || ly < 0 || ly >= H) continue;
-          // avoid overwriting trunk or ground
-          if (world[ly][lx] === 0) {
-            // randomize canopy holes so trees look less blocky
-            if (Math.random() < 0.85) {
-              world[ly][lx] = 5; // leaves
-            }
+          if (world[ly][lx] === TILE.AIR) {
+            if (Math.random() < 0.85) world[ly][lx] = TILE.LEAVES;
           }
         }
       }
 
-      // optional: a few scattered leaves below canopy
       for (let dx = -1; dx <= 1; dx++) {
         const lx = x + dx;
         const ly = trunkTopY + 2;
-        if (lx >= 0 && lx < W && ly >= 0 && ly < H && world[ly][lx] === 0) {
-          if (Math.random() < 0.5) world[ly][lx] = 5;
+        if (lx >= 0 && lx < W && ly >= 0 && ly < H && world[ly][lx] === TILE.AIR) {
+          if (Math.random() < 0.5) world[ly][lx] = TILE.LEAVES;
         }
       }
     }

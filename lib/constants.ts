@@ -1,3 +1,4 @@
+// lib/constants.ts
 export const TILE_SIZE = 16;
 export const WORLD_W = 200;
 export const WORLD_H = 120;
@@ -10,6 +11,8 @@ export const TILE = {
   WOOD: 4,
   LEAVES: 5,
 } as const;
+
+export type TileType = (typeof TILE)[keyof typeof TILE];
 
 export const TILE_COLORS: Record<number, string | null> = {
   [TILE.AIR]: null,
