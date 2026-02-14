@@ -83,6 +83,7 @@ type GameState = {
   aimX: number;
   aimY: number;
   selectedWeaponIndex: number;
+  selectedHotbarIndex: number;
   weaponCooldown: number;
   spellCooldown: number;
   enemies: Enemy[];
@@ -94,6 +95,7 @@ type GameState = {
 type GameActions = {
   tick: (keys: Record<string, boolean>) => void;
   selectHotbar: (slotIndex: number) => void;
+  setHotbarIndex: (slotIndex: number) => void;
   changeZoom: (direction: number) => void;
   breakTile: (tx: number, ty: number) => void;
   placeTile: (tx: number, ty: number, worldX: number, worldY: number) => void;
@@ -116,6 +118,7 @@ const MAX_ZOOM = 3;
 const ZOOM_STEP = 0.15;
 const FRAME_MS = 1000 / 60;
 const DEFAULT_DAY_LENGTH_MS = 3 * 60 * 1000;
+const SPELL_HOTBAR_INDEX = 7;
 
 function clamp(v: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, v));
@@ -221,6 +224,7 @@ function createInitialState(): GameState {
     aimX: spawnX + 1,
     aimY: spawnY,
     selectedWeaponIndex: 0,
+    selectedHotbarIndex: 0,
     weaponCooldown: 0,
     spellCooldown: 0,
     enemies,
@@ -352,7 +356,29 @@ export function createGameStore() {
         }),
       selectHotbar: (slotIndex) =>
         set((state) => {
-          state.inventory.selectedIndex = slotIndex;
+          const clamped = clamp(slotIndex, 0, SPELL_HOTBAR_INDEX);
+          state.selectedHotbarIndex = clamped;
+          if (clamped < state.inventory.slots.length) {
+            state.inventory.selectedIndex = clamped;
+            return;
+          }
+          const weaponIndex = clamped - state.inventory.slots.length;
+          if (weaponIndex >= 0 && weaponIndex < WEAPONS.length) {
+            state.selectedWeaponIndex = weaponIndex;
+          }
+        }),
+      setHotbarIndex: (slotIndex) =>
+        set((state) => {
+          const clamped = clamp(slotIndex, 0, SPELL_HOTBAR_INDEX);
+          state.selectedHotbarIndex = clamped;
+          if (clamped < state.inventory.slots.length) {
+            state.inventory.selectedIndex = clamped;
+            return;
+          }
+          const weaponIndex = clamped - state.inventory.slots.length;
+          if (weaponIndex >= 0 && weaponIndex < WEAPONS.length) {
+            state.selectedWeaponIndex = weaponIndex;
+          }
         }),
       changeZoom: (direction) =>
         set((state) => {
@@ -404,6 +430,7 @@ export function createGameStore() {
           const count = WEAPONS.length;
           const next = (state.selectedWeaponIndex + (direction >= 0 ? 1 : -1) + count) % count;
           state.selectedWeaponIndex = next;
+          state.selectedHotbarIndex = state.inventory.slots.length + next;
         }),
       useWeapon: () =>
         set((state) => {

@@ -2,10 +2,10 @@
 
 import { useEffect, useRef } from "react";
 import type { StoreApi } from "zustand";
-import { TILE_SIZE, WORLD_H, WORLD_W } from "@/lib/constants";
+import { TILE_COLORS, TILE_SIZE, WORLD_H, WORLD_W } from "@/lib/constants";
 import { createGameStore, SPELL, WEAPONS, type GameStore } from "@/lib/gameStore";
 import { setupKeyboard } from "@/lib/input";
-import { drawCombatInfo, drawHealthBar, drawHotbar, drawManaBar, renderWorld } from "@/lib/renderer";
+import { drawCombatInfo, drawHealthBar, drawHotbar, drawManaBar, getHotbarSlotAtPoint, renderWorld, type HotbarItem } from "@/lib/renderer";
 
 function lerp(a: number, b: number, t: number): number {
   return a + (b - a) * t;
@@ -46,9 +46,10 @@ export default function Game() {
     spriteRef.current = playerSprite;
 
     const keys: Record<string, boolean> = {};
+    const slotCount = store.getState().inventory.slots.length + WEAPONS.length + 1;
     const cleanupKeyboard = setupKeyboard(keys, (slotIndex) => {
       store.getState().selectHotbar(slotIndex);
-    });
+    }, slotCount);
 
     function resize() {
       canvasEl.width = window.innerWidth;
@@ -82,10 +83,30 @@ export default function Game() {
       const rect = canvasEl.getBoundingClientRect();
       const mx = e.clientX - rect.left;
       const my = e.clientY - rect.top;
+
+      const clickedSlot = getHotbarSlotAtPoint(canvasEl, slotCount, mx, my);
+      if (clickedSlot >= 0) {
+        store.getState().setHotbarIndex(clickedSlot);
+        return;
+      }
+
       const { worldX, worldY, tx, ty } = mouseToTarget(mx, my, rect);
       store.getState().setAim(worldX, worldY);
 
-      if (e.button === 0) store.getState().breakTile(tx, ty);
+      const state = store.getState();
+      const blockSlots = state.inventory.slots.length;
+      const weaponSlotsEnd = blockSlots + WEAPONS.length;
+
+      if (e.button === 0) {
+        const selected = state.selectedHotbarIndex;
+        if (selected < blockSlots) {
+          store.getState().breakTile(tx, ty);
+        } else if (selected < weaponSlotsEnd) {
+          store.getState().useWeapon();
+        } else {
+          store.getState().castSpell();
+        }
+      }
       if (e.button === 2) store.getState().placeTile(tx, ty, worldX, worldY);
     };
 
@@ -107,8 +128,14 @@ export default function Game() {
       if (e.code === "KeyQ") {
         store.getState().cycleWeapon(1);
       } else if (e.code === "KeyF") {
+        const state = store.getState();
+        const idx = state.inventory.slots.length + state.selectedWeaponIndex;
+        store.getState().setHotbarIndex(idx);
         store.getState().useWeapon();
       } else if (e.code === "KeyR") {
+        const state = store.getState();
+        const spellIndex = state.inventory.slots.length + WEAPONS.length;
+        store.getState().setHotbarIndex(spellIndex);
         store.getState().castSpell();
       }
     };
@@ -188,7 +215,25 @@ export default function Game() {
       drawManaBar(ctxEl, canvasEl, state.mana, state.maxMana);
       const weaponName = WEAPONS[state.selectedWeaponIndex]?.name || "Unknown";
       drawCombatInfo(ctxEl, canvasEl, weaponName, SPELL.name, state.enemies.length);
-      drawHotbar(ctxEl, canvasEl, state.inventory);
+      const hotbarItems: HotbarItem[] = [
+        ...state.inventory.slots.map((tile) => ({
+          kind: "block" as const,
+          label: String(tile),
+          color: TILE_COLORS[tile] || "#666",
+          count: state.inventory.counts[tile] || 0,
+        })),
+        ...WEAPONS.map((w) => ({
+          kind: "weapon" as const,
+          label: w.name,
+          weaponId: w.id,
+        })),
+        {
+          kind: "spell" as const,
+          label: SPELL.name,
+          spellId: SPELL.id,
+        },
+      ];
+      drawHotbar(ctxEl, canvasEl, hotbarItems, state.selectedHotbarIndex);
 
       raf = requestAnimationFrame(loop);
     }
@@ -217,6 +262,7 @@ export default function Game() {
         timeOfDay: state.timeOfDay,
         isDay: Math.sin(angle) > 0,
         weapon: WEAPONS[state.selectedWeaponIndex]?.name || "Unknown",
+        selectedHotbarIndex: state.selectedHotbarIndex,
         enemies: state.enemies.map((e) => ({ id: e.id, x: e.x, y: e.y, hp: e.hp })),
         projectiles: state.projectiles.length,
         score: state.score,

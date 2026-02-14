@@ -1,6 +1,10 @@
 // lib/renderer.ts
 import { TILE_COLORS, TILE_SIZE } from "@/lib/constants";
-import { Inventory } from "@/lib/inventory";
+
+export type HotbarItem =
+  | { kind: "block"; label: string; color: string; count: number }
+  | { kind: "weapon"; label: string; weaponId: string }
+  | { kind: "spell"; label: string; spellId: string };
 
 export function renderWorld(
   ctx: CanvasRenderingContext2D,
@@ -32,31 +36,98 @@ export function renderWorld(
   }
 }
 
-export function drawHotbar(ctx: CanvasRenderingContext2D, canvas: HTMLCanvasElement, inv: Inventory) {
-  const slotCount = inv.slots.length;
+function getHotbarMetrics(canvas: HTMLCanvasElement, slotCount: number) {
   const size = 44;
   const padding = 10;
-  const startX = 20;
+  const totalW = slotCount * size + (slotCount - 1) * padding;
+  const startX = Math.max(20, Math.floor((canvas.width - totalW) / 2));
   const y = canvas.height - size - 20;
+  return { size, padding, startX, y };
+}
 
+function drawSwordIcon(ctx: CanvasRenderingContext2D, x: number, y: number, size: number) {
+  ctx.fillStyle = "#c9d1d9";
+  ctx.fillRect(x + Math.floor(size * 0.55), y + Math.floor(size * 0.1), 4, Math.floor(size * 0.55));
+  ctx.fillStyle = "#8b5a2b";
+  ctx.fillRect(x + Math.floor(size * 0.48), y + Math.floor(size * 0.62), 10, 4);
+  ctx.fillStyle = "#d4a15a";
+  ctx.fillRect(x + Math.floor(size * 0.59), y + Math.floor(size * 0.7), 2, Math.floor(size * 0.18));
+}
+
+function drawBlasterIcon(ctx: CanvasRenderingContext2D, x: number, y: number, size: number) {
+  ctx.fillStyle = "#2b2b2b";
+  ctx.fillRect(x + Math.floor(size * 0.2), y + Math.floor(size * 0.4), Math.floor(size * 0.55), 8);
+  ctx.fillStyle = "#5dade2";
+  ctx.fillRect(x + Math.floor(size * 0.6), y + Math.floor(size * 0.45), Math.floor(size * 0.2), 4);
+  ctx.fillStyle = "#4d4d4d";
+  ctx.fillRect(x + Math.floor(size * 0.35), y + Math.floor(size * 0.52), 7, Math.floor(size * 0.22));
+}
+
+function drawSpellIcon(ctx: CanvasRenderingContext2D, x: number, y: number, size: number) {
+  ctx.beginPath();
+  ctx.arc(x + size * 0.5, y + size * 0.5, size * 0.22, 0, Math.PI * 2);
+  ctx.fillStyle = "#ff8a33";
+  ctx.fill();
+  ctx.beginPath();
+  ctx.arc(x + size * 0.45, y + size * 0.45, size * 0.1, 0, Math.PI * 2);
+  ctx.fillStyle = "#ffd166";
+  ctx.fill();
+}
+
+export function getHotbarSlotAtPoint(
+  canvas: HTMLCanvasElement,
+  slotCount: number,
+  x: number,
+  y: number
+): number {
+  const { size, padding, startX, y: startY } = getHotbarMetrics(canvas, slotCount);
+  for (let i = 0; i < slotCount; i++) {
+    const sx = startX + i * (size + padding);
+    if (x >= sx && x <= sx + size && y >= startY && y <= startY + size) return i;
+  }
+  return -1;
+}
+
+export function drawHotbar(
+  ctx: CanvasRenderingContext2D,
+  canvas: HTMLCanvasElement,
+  items: HotbarItem[],
+  selectedIndex: number
+) {
+  const slotCount = items.length;
+  const { size, padding, startX, y } = getHotbarMetrics(canvas, slotCount);
   ctx.font = "12px monospace";
   ctx.textBaseline = "top";
 
   for (let i = 0; i < slotCount; i++) {
     const x = startX + i * (size + padding);
+    const item = items[i];
 
-    ctx.fillStyle = i === inv.selectedIndex ? "#ffffff" : "#999999";
+    ctx.fillStyle = i === selectedIndex ? "#ffffff" : "#999999";
     ctx.fillRect(x - 4, y - 4, size + 8, size + 8);
 
-    const tile = inv.slots[i];
-    ctx.fillStyle = TILE_COLORS[tile] || "#000";
+    ctx.fillStyle = "#1b1b1b";
     ctx.fillRect(x, y, size, size);
 
-    // count
-    ctx.fillStyle = "#000";
-    ctx.fillText(String(inv.counts[tile] || 0), x + 6, y + 6);
+    if (item.kind === "block") {
+      ctx.fillStyle = item.color;
+      ctx.fillRect(x + 3, y + 3, size - 6, size - 6);
+    } else if (item.kind === "weapon") {
+      ctx.fillStyle = "#222";
+      ctx.fillRect(x + 3, y + 3, size - 6, size - 6);
+      if (item.weaponId === "iron_sword") drawSwordIcon(ctx, x, y, size);
+      else drawBlasterIcon(ctx, x, y, size);
+    } else {
+      ctx.fillStyle = "#1c1a26";
+      ctx.fillRect(x + 3, y + 3, size - 6, size - 6);
+      drawSpellIcon(ctx, x, y, size);
+    }
 
-    // slot number
+    if (item.kind === "block") {
+      ctx.fillStyle = "#000";
+      ctx.fillText(String(item.count), x + 6, y + 6);
+    }
+
     ctx.fillStyle = "#fff";
     ctx.fillText(String(i + 1), x + size - 12, y + size - 14);
   }
