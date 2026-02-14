@@ -11,7 +11,7 @@ export default function Game() {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const spriteRef = useRef<HTMLImageElement | null>(null);
   const storeRef = useRef<StoreApi<GameStore> | null>(null);
-  //comment here
+// main comment here
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
