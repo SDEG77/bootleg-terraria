@@ -64,7 +64,7 @@ export function drawHotbar(ctx: CanvasRenderingContext2D, canvas: HTMLCanvasElem
 
 export function drawHealthBar(
   ctx: CanvasRenderingContext2D,
-  canvas: HTMLCanvasElement,
+  _canvas: HTMLCanvasElement,
   health: number,
   maxHealth: number
 ) {
@@ -97,4 +97,65 @@ export function drawHealthBar(
 
   // Keep text alignment predictable for other HUD draws.
   ctx.textAlign = "start";
+}
+
+export function drawManaBar(
+  ctx: CanvasRenderingContext2D,
+  _canvas: HTMLCanvasElement,
+  mana: number,
+  maxMana: number
+) {
+  const x = 20;
+  const y = 48;
+  const w = 220;
+  const h = 18;
+  const safeMax = Math.max(1, maxMana);
+  const clamped = Math.max(0, Math.min(mana, safeMax));
+  const ratio = clamped / safeMax;
+
+  ctx.fillStyle = "rgba(0,0,0,0.55)";
+  ctx.fillRect(x - 2, y - 2, w + 4, h + 4);
+
+  ctx.fillStyle = "#071a35";
+  ctx.fillRect(x, y, w, h);
+
+  ctx.fillStyle = "#42a5f5";
+  ctx.fillRect(x, y, Math.floor(w * ratio), h);
+
+  ctx.strokeStyle = "#ffffff";
+  ctx.lineWidth = 2;
+  ctx.strokeRect(x, y, w, h);
+
+  ctx.font = "bold 12px monospace";
+  ctx.textAlign = "left";
+  ctx.textBaseline = "top";
+  ctx.fillStyle = "#ffffff";
+  ctx.fillText(`MP ${Math.ceil(clamped)}/${safeMax}`, x + 8, y + 2);
+  ctx.textAlign = "start";
+}
+
+export function drawCombatInfo(
+  ctx: CanvasRenderingContext2D,
+  canvas: HTMLCanvasElement,
+  weaponName: string,
+  spellName: string,
+  enemiesAlive: number
+) {
+  const x = canvas.width - 320;
+  const y = 20;
+  const w = 300;
+  const h = 62;
+
+  ctx.fillStyle = "rgba(0,0,0,0.45)";
+  ctx.fillRect(x, y, w, h);
+  ctx.strokeStyle = "#ffffff";
+  ctx.lineWidth = 1;
+  ctx.strokeRect(x, y, w, h);
+
+  ctx.fillStyle = "#ffffff";
+  ctx.font = "12px monospace";
+  ctx.textBaseline = "top";
+  ctx.fillText(`Weapon [Q/F]: ${weaponName}`, x + 10, y + 10);
+  ctx.fillText(`Spell [R]: ${spellName}`, x + 10, y + 26);
+  ctx.fillText(`Enemies: ${enemiesAlive}`, x + 10, y + 42);
 }
