@@ -7,11 +7,28 @@ import { createGameStore, type GameStore } from "@/lib/gameStore";
 import { setupKeyboard } from "@/lib/input";
 import { drawHealthBar, drawHotbar, renderWorld } from "@/lib/renderer";
 
+function lerp(a: number, b: number, t: number): number {
+  return a + (b - a) * t;
+}
+
+function clamp01(v: number): number {
+  return Math.max(0, Math.min(1, v));
+}
+
+function skyColorFromTime(timeOfDay: number): string {
+  const angle = timeOfDay * Math.PI * 2;
+  const daylight = clamp01((Math.sin(angle - Math.PI / 2) + 1) / 2);
+  const r = Math.round(lerp(16, 135, daylight));
+  const g = Math.round(lerp(24, 206, daylight));
+  const b = Math.round(lerp(54, 235, daylight));
+  return `rgb(${r}, ${g}, ${b})`;
+}
+
 export default function Game() {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const spriteRef = useRef<HTMLImageElement | null>(null);
   const storeRef = useRef<StoreApi<GameStore> | null>(null);
-// main comment here
+
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -88,8 +105,17 @@ export default function Game() {
       const state = store.getState();
       const { camX, camY } = getCamera();
 
-      ctxEl.fillStyle = "#87CEEB";
+      ctxEl.fillStyle = skyColorFromTime(state.timeOfDay);
       ctxEl.fillRect(0, 0, canvasEl.width, canvasEl.height);
+
+      const celestialAngle = state.timeOfDay * Math.PI * 2 - Math.PI / 2;
+      const celestialX = canvasEl.width * 0.5 + Math.cos(celestialAngle) * canvasEl.width * 0.38;
+      const celestialY = canvasEl.height * 0.82 - Math.sin(celestialAngle) * canvasEl.height * 0.62;
+      const isDay = Math.sin(celestialAngle) > 0;
+      ctxEl.beginPath();
+      ctxEl.arc(celestialX, celestialY, 18, 0, Math.PI * 2);
+      ctxEl.fillStyle = isDay ? "#ffd54f" : "#f5f3ce";
+      ctxEl.fill();
 
       renderWorld(ctxEl, state.world, camX, camY, canvasEl, state.zoom);
 
@@ -112,6 +138,36 @@ export default function Game() {
       raf = requestAnimationFrame(loop);
     }
 
+    const win = window as Window & {
+      render_game_to_text?: () => string;
+      advanceTime?: (ms: number) => void;
+    };
+    win.render_game_to_text = () => {
+      const state = store.getState();
+      const angle = state.timeOfDay * Math.PI * 2 - Math.PI / 2;
+      return JSON.stringify({
+        coordinateSystem: "origin top-left, +x right, +y down",
+        player: {
+          x: state.player.x,
+          y: state.player.y,
+          vx: state.player.vx,
+          vy: state.player.vy,
+          onGround: state.player.onGround,
+        },
+        health: state.health,
+        maxHealth: state.maxHealth,
+        zoom: state.zoom,
+        timeOfDay: state.timeOfDay,
+        isDay: Math.sin(angle) > 0,
+      });
+    };
+    win.advanceTime = (ms: number) => {
+      const steps = Math.max(1, Math.round(ms / (1000 / 60)));
+      for (let i = 0; i < steps; i++) {
+        store.getState().tick(keys);
+      }
+    };
+
     raf = requestAnimationFrame(loop);
 
     return () => {
@@ -123,6 +179,8 @@ export default function Game() {
       canvasEl.removeEventListener("contextmenu", handleContextMenu);
       spriteRef.current = null;
       storeRef.current = null;
+      delete win.render_game_to_text;
+      delete win.advanceTime;
     };
   }, []);
 

@@ -14,6 +14,8 @@ type GameState = {
   spawnX: number;
   spawnY: number;
   zoom: number;
+  timeOfDay: number;
+  dayLengthMs: number;
 };
 
 type GameActions = {
@@ -33,6 +35,8 @@ const MAX_HEALTH = 100;
 const MIN_ZOOM = 0.75;
 const MAX_ZOOM = 3;
 const ZOOM_STEP = 0.15;
+const FRAME_MS = 1000 / 60;
+const DEFAULT_DAY_LENGTH_MS = 3 * 60 * 1000;
 
 function isWithinInteractRange(state: GameState, tx: number, ty: number): boolean {
   const px = state.player.x + state.player.w / 2;
@@ -88,6 +92,8 @@ function createInitialState(): GameState {
     spawnX,
     spawnY,
     zoom: 1.5,
+    timeOfDay: 0.25,
+    dayLengthMs: DEFAULT_DAY_LENGTH_MS,
   };
 }
 
@@ -97,6 +103,8 @@ export function createGameStore() {
       ...createInitialState(),
       tick: (keys) =>
         set((state) => {
+          state.timeOfDay = (state.timeOfDay + FRAME_MS / state.dayLengthMs) % 1;
+
           const left = keys["ArrowLeft"] || keys["KeyA"];
           const right = keys["ArrowRight"] || keys["KeyD"];
           const jump = keys["Space"] || keys["ArrowUp"] || keys["KeyW"];
