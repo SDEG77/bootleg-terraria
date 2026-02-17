@@ -12,7 +12,7 @@ function lerp(a: number, b: number, t: number): number {
 }
 
 function clamp01(v: number): number {
-  return Math.max(0, Math.min(1, v));
+  return Math.max(0, Math.min(1, v));//qwkausdb
 }
 
 function skyColorFromTime(timeOfDay: number): string {
