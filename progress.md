@@ -28,3 +28,12 @@ TODOs / suggestions:
 - Add enemy attack projectiles for ranged enemy types.
 - Add weapon hotbar slot or UI selection with icons.
 - Add hit flash / knockback feedback on both player and enemies.
+
+Pause menu:
+- Added ESC pause toggle in `components/Game.tsx`.
+- While paused, game simulation (`tick`) stops.
+- Added pause overlay menu with options:
+  - Resume: closes menu and resumes game.
+  - Quit: navigates to `about:blank`.
+- Menu is mouse-clickable and blocks gameplay clicks while open.
+- `render_game_to_text` now includes `paused`.
