@@ -48,6 +48,10 @@ export default function Game() {
     const keys: Record<string, boolean> = {};
     const slotCount = store.getState().inventory.slots.length + WEAPONS.length + 1;
     let paused = false;
+    let inventoryOpen = false;
+    let draggingSlot = -1;
+    let dragMouseX = 0;
+    let dragMouseY = 0;
     const cleanupKeyboard = setupKeyboard(keys, (slotIndex) => {
       store.getState().selectHotbar(slotIndex);
     }, slotCount);
@@ -74,6 +78,30 @@ export default function Game() {
 
     function pointInRect(px: number, py: number, r: { x: number; y: number; w: number; h: number }) {
       return px >= r.x && px <= r.x + r.w && py >= r.y && py <= r.y + r.h;
+    }
+
+    function getInventoryMenuRects() {
+      const panelW = 520;
+      const panelH = 260;
+      const panelX = Math.floor((canvasEl.width - panelW) / 2);
+      const panelY = Math.floor((canvasEl.height - panelH) / 2);
+      const slotSize = 56;
+      const gap = 12;
+      const invSlots = store.getState().inventory.slots.length;
+      const totalW = invSlots * slotSize + (invSlots - 1) * gap;
+      const startX = panelX + Math.floor((panelW - totalW) / 2);
+      const slotsY = panelY + 112;
+      return { panelX, panelY, panelW, panelH, slotSize, gap, startX, slotsY, invSlots };
+    }
+
+    function getInventorySlotAtPoint(mx: number, my: number): number {
+      const menu = getInventoryMenuRects();
+      for (let i = 0; i < menu.invSlots; i++) {
+        const sx = menu.startX + i * (menu.slotSize + menu.gap);
+        const sy = menu.slotsY;
+        if (mx >= sx && mx <= sx + menu.slotSize && my >= sy && my <= sy + menu.slotSize) return i;
+      }
+      return -1;
     }
 
     function resize() {
@@ -108,6 +136,20 @@ export default function Game() {
       const rect = canvasEl.getBoundingClientRect();
       const mx = e.clientX - rect.left;
       const my = e.clientY - rect.top;
+      dragMouseX = mx;
+      dragMouseY = my;
+
+      if (inventoryOpen && e.button === 0) {
+        const slot = getInventorySlotAtPoint(mx, my);
+        if (slot >= 0) {
+          const state = store.getState();
+          const tile = state.inventory.slots[slot];
+          if ((state.inventory.counts[tile] || 0) > 0) {
+            draggingSlot = slot;
+          }
+        }
+        return;
+      }
 
       if (paused && e.button === 0) {
         const menu = getPauseMenuRects();
@@ -149,16 +191,31 @@ export default function Game() {
     };
 
     const handleMouseMove = (e: MouseEvent) => {
-      if (paused) return;
       const rect = canvasEl.getBoundingClientRect();
       const mx = e.clientX - rect.left;
       const my = e.clientY - rect.top;
+      dragMouseX = mx;
+      dragMouseY = my;
+      if (paused || inventoryOpen) return;
       const { worldX, worldY } = mouseToTarget(mx, my, rect);
       store.getState().setAim(worldX, worldY);
     };
 
+    const handleMouseUp = (e: MouseEvent) => {
+      if (!inventoryOpen || draggingSlot < 0 || e.button !== 0) return;
+      const rect = canvasEl.getBoundingClientRect();
+      const mx = e.clientX - rect.left;
+      const my = e.clientY - rect.top;
+      const target = getInventorySlotAtPoint(mx, my);
+      if (target >= 0 && target !== draggingSlot) {
+        store.getState().swapInventorySlots(draggingSlot, target);
+      }
+      draggingSlot = -1;
+    };
+
     const handleWheel = (e: WheelEvent) => {
       e.preventDefault();
+      if (paused || inventoryOpen) return;
       if (e.ctrlKey) {
         store.getState().changeZoom(e.deltaY < 0 ? 1 : -1);
         return;
@@ -172,11 +229,23 @@ export default function Game() {
 
     const handleCombatKeys = (e: KeyboardEvent) => {
       if (e.repeat) return;
+      if (e.code === "KeyE") {
+        if (!paused) {
+          inventoryOpen = !inventoryOpen;
+          if (!inventoryOpen) draggingSlot = -1;
+        }
+        return;
+      }
       if (e.code === "Escape") {
+        if (inventoryOpen) {
+          inventoryOpen = false;
+          draggingSlot = -1;
+          return;
+        }
         paused = !paused;
         return;
       }
-      if (paused) return;
+      if (paused || inventoryOpen) return;
       if (e.code === "KeyQ") {
         store.getState().cycleWeapon(1);
       } else if (e.code === "KeyF") {
@@ -196,6 +265,7 @@ export default function Game() {
 
     canvasEl.addEventListener("mousedown", handleMouseDown);
     canvasEl.addEventListener("mousemove", handleMouseMove);
+    canvasEl.addEventListener("mouseup", handleMouseUp);
     canvasEl.addEventListener("wheel", handleWheel, { passive: false });
     canvasEl.addEventListener("contextmenu", handleContextMenu);
     window.addEventListener("keydown", handleCombatKeys);
@@ -320,6 +390,60 @@ export default function Game() {
         ctxEl.textAlign = "start";
       }
 
+      if (inventoryOpen) {
+        const menu = getInventoryMenuRects();
+        const stateInv = state.inventory;
+
+        ctxEl.fillStyle = "rgba(0,0,0,0.45)";
+        ctxEl.fillRect(0, 0, canvasEl.width, canvasEl.height);
+        ctxEl.fillStyle = "#181818";
+        ctxEl.fillRect(menu.panelX, menu.panelY, menu.panelW, menu.panelH);
+        ctxEl.strokeStyle = "#ffffff";
+        ctxEl.lineWidth = 2;
+        ctxEl.strokeRect(menu.panelX, menu.panelY, menu.panelW, menu.panelH);
+
+        ctxEl.fillStyle = "#ffffff";
+        ctxEl.font = "bold 24px monospace";
+        ctxEl.textAlign = "center";
+        ctxEl.textBaseline = "top";
+        ctxEl.fillText("Inventory", menu.panelX + menu.panelW / 2, menu.panelY + 22);
+        ctxEl.font = "12px monospace";
+        ctxEl.fillText("Drag items between slots", menu.panelX + menu.panelW / 2, menu.panelY + 58);
+
+        for (let i = 0; i < menu.invSlots; i++) {
+          const sx = menu.startX + i * (menu.slotSize + menu.gap);
+          const sy = menu.slotsY;
+          const tile = stateInv.slots[i];
+          const count = stateInv.counts[tile] || 0;
+          const isDraggingSource = draggingSlot === i;
+
+          ctxEl.fillStyle = "#9a9a9a";
+          ctxEl.fillRect(sx - 3, sy - 3, menu.slotSize + 6, menu.slotSize + 6);
+          ctxEl.fillStyle = isDraggingSource ? "#222" : (TILE_COLORS[tile] || "#666");
+          ctxEl.fillRect(sx, sy, menu.slotSize, menu.slotSize);
+          ctxEl.fillStyle = "#000";
+          ctxEl.fillText(String(count), sx + 6, sy + 6);
+          ctxEl.fillStyle = "#fff";
+          ctxEl.fillText(String(i + 1), sx + menu.slotSize - 12, sy + menu.slotSize - 14);
+        }
+
+        if (draggingSlot >= 0) {
+          const tile = stateInv.slots[draggingSlot];
+          const count = stateInv.counts[tile] || 0;
+          const size = menu.slotSize;
+          const x = dragMouseX - Math.floor(size / 2);
+          const y = dragMouseY - Math.floor(size / 2);
+          ctxEl.fillStyle = "rgba(255,255,255,0.8)";
+          ctxEl.fillRect(x - 2, y - 2, size + 4, size + 4);
+          ctxEl.fillStyle = TILE_COLORS[tile] || "#666";
+          ctxEl.fillRect(x, y, size, size);
+          ctxEl.fillStyle = "#000";
+          ctxEl.fillText(String(count), x + 6, y + 6);
+        }
+
+        ctxEl.textAlign = "start";
+      }
+
       raf = requestAnimationFrame(loop);
     }
 
@@ -347,6 +471,7 @@ export default function Game() {
         timeOfDay: state.timeOfDay,
         isDay: Math.sin(angle) > 0,
         paused,
+        inventoryOpen,
         weapon: WEAPONS[state.selectedWeaponIndex]?.name || "Unknown",
         selectedHotbarIndex: state.selectedHotbarIndex,
         enemies: state.enemies.map((e) => ({ id: e.id, x: e.x, y: e.y, hp: e.hp })),
@@ -369,6 +494,7 @@ export default function Game() {
       window.removeEventListener("resize", resize);
       canvasEl.removeEventListener("mousedown", handleMouseDown);
       canvasEl.removeEventListener("mousemove", handleMouseMove);
+      canvasEl.removeEventListener("mouseup", handleMouseUp);
       canvasEl.removeEventListener("wheel", handleWheel);
       canvasEl.removeEventListener("contextmenu", handleContextMenu);
       window.removeEventListener("keydown", handleCombatKeys);

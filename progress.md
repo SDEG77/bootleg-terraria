@@ -40,3 +40,10 @@ Pause menu:
 - Updated mouse wheel controls:
   - Wheel (default): cycles hotbar selection forward/backward.
   - Ctrl + Wheel: zoom in/out (keeps previous zoom behavior accessible).
+
+Inventory menu:
+- Added inventory overlay toggled with `E`.
+- Inventory slots are draggable with mouse (drag-drop swaps slot contents).
+- Gameplay interactions are blocked while inventory is open.
+- Added store action `swapInventorySlots(from, to)` for deterministic drag behavior.
+- Added `inventoryOpen` to `render_game_to_text` output.

@@ -96,6 +96,7 @@ type GameActions = {
   tick: (keys: Record<string, boolean>) => void;
   selectHotbar: (slotIndex: number) => void;
   setHotbarIndex: (slotIndex: number) => void;
+  swapInventorySlots: (fromIndex: number, toIndex: number) => void;
   changeZoom: (direction: number) => void;
   breakTile: (tx: number, ty: number) => void;
   placeTile: (tx: number, ty: number, worldX: number, worldY: number) => void;
@@ -379,6 +380,20 @@ export function createGameStore() {
           if (weaponIndex >= 0 && weaponIndex < WEAPONS.length) {
             state.selectedWeaponIndex = weaponIndex;
           }
+        }),
+      swapInventorySlots: (fromIndex, toIndex) =>
+        set((state) => {
+          const max = state.inventory.slots.length - 1;
+          const from = clamp(fromIndex, 0, max);
+          const to = clamp(toIndex, 0, max);
+          if (from === to) return;
+          const a = state.inventory.slots[from];
+          const b = state.inventory.slots[to];
+          state.inventory.slots[from] = b;
+          state.inventory.slots[to] = a;
+
+          if (state.inventory.selectedIndex === from) state.inventory.selectedIndex = to;
+          else if (state.inventory.selectedIndex === to) state.inventory.selectedIndex = from;
         }),
       changeZoom: (direction) =>
         set((state) => {
