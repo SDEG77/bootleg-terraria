@@ -47,9 +47,34 @@ export default function Game() {
 
     const keys: Record<string, boolean> = {};
     const slotCount = store.getState().inventory.slots.length + WEAPONS.length + 1;
+    let paused = false;
     const cleanupKeyboard = setupKeyboard(keys, (slotIndex) => {
       store.getState().selectHotbar(slotIndex);
     }, slotCount);
+
+    function getPauseMenuRects() {
+      const panelW = 320;
+      const panelH = 220;
+      const panelX = Math.floor((canvasEl.width - panelW) / 2);
+      const panelY = Math.floor((canvasEl.height - panelH) / 2);
+      const btnW = 180;
+      const btnH = 44;
+      const btnX = panelX + Math.floor((panelW - btnW) / 2);
+      const resumeY = panelY + 92;
+      const quitY = resumeY + btnH + 14;
+      return {
+        panelX,
+        panelY,
+        panelW,
+        panelH,
+        resume: { x: btnX, y: resumeY, w: btnW, h: btnH },
+        quit: { x: btnX, y: quitY, w: btnW, h: btnH },
+      };
+    }
+
+    function pointInRect(px: number, py: number, r: { x: number; y: number; w: number; h: number }) {
+      return px >= r.x && px <= r.x + r.w && py >= r.y && py <= r.y + r.h;
+    }
 
     function resize() {
       canvasEl.width = window.innerWidth;
@@ -84,6 +109,19 @@ export default function Game() {
       const mx = e.clientX - rect.left;
       const my = e.clientY - rect.top;
 
+      if (paused && e.button === 0) {
+        const menu = getPauseMenuRects();
+        if (pointInRect(mx, my, menu.resume)) {
+          paused = false;
+          return;
+        }
+        if (pointInRect(mx, my, menu.quit)) {
+          window.location.href = "about:blank";
+          return;
+        }
+        return;
+      }
+
       const clickedSlot = getHotbarSlotAtPoint(canvasEl, slotCount, mx, my);
       if (clickedSlot >= 0) {
         store.getState().setHotbarIndex(clickedSlot);
@@ -111,6 +149,7 @@ export default function Game() {
     };
 
     const handleMouseMove = (e: MouseEvent) => {
+      if (paused) return;
       const rect = canvasEl.getBoundingClientRect();
       const mx = e.clientX - rect.left;
       const my = e.clientY - rect.top;
@@ -125,6 +164,11 @@ export default function Game() {
 
     const handleCombatKeys = (e: KeyboardEvent) => {
       if (e.repeat) return;
+      if (e.code === "Escape") {
+        paused = !paused;
+        return;
+      }
+      if (paused) return;
       if (e.code === "KeyQ") {
         store.getState().cycleWeapon(1);
       } else if (e.code === "KeyF") {
@@ -150,7 +194,9 @@ export default function Game() {
 
     let raf = 0;
     function loop() {
-      store.getState().tick(keys);
+      if (!paused) {
+        store.getState().tick(keys);
+      }
       const state = store.getState();
       const { camX, camY } = getCamera();
 
@@ -235,6 +281,37 @@ export default function Game() {
       ];
       drawHotbar(ctxEl, canvasEl, hotbarItems, state.selectedHotbarIndex);
 
+      if (paused) {
+        const menu = getPauseMenuRects();
+        ctxEl.fillStyle = "rgba(0,0,0,0.5)";
+        ctxEl.fillRect(0, 0, canvasEl.width, canvasEl.height);
+
+        ctxEl.fillStyle = "#1b1b1b";
+        ctxEl.fillRect(menu.panelX, menu.panelY, menu.panelW, menu.panelH);
+        ctxEl.strokeStyle = "#ffffff";
+        ctxEl.lineWidth = 2;
+        ctxEl.strokeRect(menu.panelX, menu.panelY, menu.panelW, menu.panelH);
+
+        ctxEl.fillStyle = "#ffffff";
+        ctxEl.font = "bold 28px monospace";
+        ctxEl.textAlign = "center";
+        ctxEl.textBaseline = "top";
+        ctxEl.fillText("Paused", menu.panelX + menu.panelW / 2, menu.panelY + 28);
+
+        ctxEl.fillStyle = "#2f7d32";
+        ctxEl.fillRect(menu.resume.x, menu.resume.y, menu.resume.w, menu.resume.h);
+        ctxEl.fillStyle = "#ffffff";
+        ctxEl.font = "bold 18px monospace";
+        ctxEl.fillText("Resume", menu.resume.x + menu.resume.w / 2, menu.resume.y + 12);
+
+        ctxEl.fillStyle = "#8b1e1e";
+        ctxEl.fillRect(menu.quit.x, menu.quit.y, menu.quit.w, menu.quit.h);
+        ctxEl.fillStyle = "#ffffff";
+        ctxEl.fillText("Quit", menu.quit.x + menu.quit.w / 2, menu.quit.y + 12);
+
+        ctxEl.textAlign = "start";
+      }
+
       raf = requestAnimationFrame(loop);
     }
 
@@ -261,6 +338,7 @@ export default function Game() {
         zoom: state.zoom,
         timeOfDay: state.timeOfDay,
         isDay: Math.sin(angle) > 0,
+        paused,
         weapon: WEAPONS[state.selectedWeaponIndex]?.name || "Unknown",
         selectedHotbarIndex: state.selectedHotbarIndex,
         enemies: state.enemies.map((e) => ({ id: e.id, x: e.x, y: e.y, hp: e.hp })),
