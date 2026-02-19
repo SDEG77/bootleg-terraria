@@ -37,3 +37,6 @@ Pause menu:
   - Quit: navigates to `about:blank`.
 - Menu is mouse-clickable and blocks gameplay clicks while open.
 - `render_game_to_text` now includes `paused`.
+- Updated mouse wheel controls:
+  - Wheel (default): cycles hotbar selection forward/backward.
+  - Ctrl + Wheel: zoom in/out (keeps previous zoom behavior accessible).

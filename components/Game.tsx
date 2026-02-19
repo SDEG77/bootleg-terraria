@@ -159,7 +159,15 @@ export default function Game() {
 
     const handleWheel = (e: WheelEvent) => {
       e.preventDefault();
-      store.getState().changeZoom(e.deltaY < 0 ? 1 : -1);
+      if (e.ctrlKey) {
+        store.getState().changeZoom(e.deltaY < 0 ? 1 : -1);
+        return;
+      }
+
+      const state = store.getState();
+      const step = e.deltaY > 0 ? 1 : -1;
+      const next = (state.selectedHotbarIndex + step + slotCount) % slotCount;
+      store.getState().setHotbarIndex(next);
     };
 
     const handleCombatKeys = (e: KeyboardEvent) => {
