@@ -47,3 +47,7 @@ Inventory menu:
 - Gameplay interactions are blocked while inventory is open.
 - Added store action `swapInventorySlots(from, to)` for deterministic drag behavior.
 - Added `inventoryOpen` to `render_game_to_text` output.
+
+Zombie sprite:
+- Added dedicated enemy asset `public/zombie-sprite.svg`.
+- Enemy rendering now uses the zombie sprite (with rectangle fallback if image not loaded).

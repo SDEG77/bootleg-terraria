@@ -27,6 +27,7 @@ function skyColorFromTime(timeOfDay: number): string {
 export default function Game() {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const spriteRef = useRef<HTMLImageElement | null>(null);
+  const enemySpriteRef = useRef<HTMLImageElement | null>(null);
   const storeRef = useRef<StoreApi<GameStore> | null>(null);
 
   useEffect(() => {
@@ -44,6 +45,9 @@ export default function Game() {
     const playerSprite = new Image();
     playerSprite.src = "/player-sprite.svg";
     spriteRef.current = playerSprite;
+    const enemySprite = new Image();
+    enemySprite.src = "/zombie-sprite.svg";
+    enemySpriteRef.current = enemySprite;
 
     const keys: Record<string, boolean> = {};
     const slotCount = store.getState().inventory.slots.length + WEAPONS.length + 1;
@@ -299,8 +303,13 @@ export default function Game() {
         const ew = Math.ceil(e.w * state.zoom);
         const eh = Math.ceil(e.h * state.zoom);
 
-        ctxEl.fillStyle = "#4caf50";
-        ctxEl.fillRect(ex, ey, ew, eh);
+        const enemySpriteImg = enemySpriteRef.current;
+        if (enemySpriteImg && enemySpriteImg.complete && enemySpriteImg.naturalWidth > 0) {
+          ctxEl.drawImage(enemySpriteImg, ex, ey, ew, eh);
+        } else {
+          ctxEl.fillStyle = "#4caf50";
+          ctxEl.fillRect(ex, ey, ew, eh);
+        }
 
         const hpRatio = Math.max(0, Math.min(1, e.hp / e.maxHp));
         const barW = ew;
@@ -499,6 +508,7 @@ export default function Game() {
       canvasEl.removeEventListener("contextmenu", handleContextMenu);
       window.removeEventListener("keydown", handleCombatKeys);
       spriteRef.current = null;
+      enemySpriteRef.current = null;
       storeRef.current = null;
       delete win.render_game_to_text;
       delete win.advanceTime;
